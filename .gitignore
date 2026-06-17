@@ -1,0 +1,19 @@
+# Run-time artifacts (never commit)
+*_log.txt
+*_MasterDiff_*.csv
+
+# Excel lock files
+~$*.xlsx
+
+# PowerShell transcripts
+PowerShell_transcript.*
+
+# OS noise
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Editor noise
+.vscode/
+*.suo
+*.user
