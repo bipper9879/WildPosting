@@ -306,10 +306,34 @@ Mitigations:
   centroid averages out and ends up close to the true spot.
 - **Smaller radius** keeps cross-street collisions down at the cost of more
   manual sorting.
-- **Don't consolidate distinct intersections** even when they read like
-  variants - e.g. `Connecticut Ave & Rhode Island Ave NW` is genuinely a
-  different physical spot from `Rhode Island & Connecticut Ave NW` if your
-  workflow treats them as separate poster locations.
+- **Per-street `.radius` override** for known canyon streets (see below).
+- **Don't consolidate distinct intersections.** Some intersections legitimately
+  appear under more than one name in the workbook because the workflow
+  treats them as separate poster locations even though GPS sees them as
+  one point. Examples in DC:
+  - `M St & 1st St NW` and `1st St & M St NW` (north-of-M becomes 1st Pl,
+    south is 1st St - both belong to the same physical corner)
+  - `Connecticut Ave & Rhode Island Ave NW` and
+    `Rhode Island Ave & Connecticut Ave NW`
+  No GPS-only algorithm can split these because the anchors overlap. Photos
+  taken at one of the pair will sometimes land in the other; just drag
+  them across manually. **Do not merge the rows or the folders.**
+
+### Edge cases the sorter cannot fix
+
+A few situations are fundamentally unrecoverable from EXIF data alone:
+
+- **Phone wrote completely wrong coordinates.** Common in tight canyons.
+  The most extreme case observed so far: a photo taken at
+  `Connecticut & Rhode Island NW` had EXIF coordinates 5.6 ft from `1211
+  Connecticut NW` (several blocks south), so any GPS algorithm would
+  confidently route it wrong. The timestamp-cluster fallback rescues
+  some of these; the rest land in `Needs_Manual_Sorting`. That is the
+  correct behavior - we'd rather miss than misroute.
+- **Two name variants for the same physical corner** (see above).
+- **Streets within ~60 ft of each other.** Two 30 ft circles touch;
+  whichever Master centroid happens to be marginally closer wins. Cure
+  is more anchors, not radius tweaks.
 
 ---
 
@@ -353,10 +377,15 @@ The log line `[RADIUS] [<Street>] override = N ft` confirms each load.
 `[MOVED]` lines now also show whether the radius used was the default or
 an override.
 
-> **Note:** The 200 ft override on `5th btw Neil Pl & Morse NE` is unusual.
-> The Master centroid for that street is ~180 ft off the actual location,
-> indicating one or more bad anchor photos in the Master folder. Re-curate
-> with cleaner GPS shots and the override can be lowered.
+> **Important warning re: 5th btw Neil Pl & Morse NE.** The 200 ft override
+> is a band-aid, not a real fit. The Master centroid for that street is
+> ~180 ft from the actual physical location - which means at least one of
+> the anchor photos in `DC_Master\5th btw Neil Pl & Morse NE\` was taken
+> at the wrong spot, or has badly drifted GPS. **Re-curate that folder**
+> (use `Debug-PhotoGps.ps1 -Sample "5th btw Neil Pl & Morse NE"` to find
+> the outlier anchor, delete it, retake) and then drop the override back to
+> ~75 ft. Until that's done, photos at neighboring streets within 200 ft
+> may get pulled into Neil/Morse incorrectly.
 
 ### Timestamp-cluster fallback
 
@@ -409,3 +438,22 @@ Workflow when adding a new street:
 5. Run `Compare-MasterList.ps1` to confirm zero mismatches.
 6. Optionally run `LinkGenerator.ps1` to populate the Master-sheet column F
    Street View link.
+
+### Calibrating per-street overrides with a ground-truth folder
+
+The most reliable way to set `.radius` values is to use a hand-corrected
+run as a calibration set:
+
+1. Run a normal job, accept whatever lands in `Needs_Manual_Sorting`.
+2. Drag everything from manual into the correct street folders by hand.
+3. **Keep that dated folder around** as a ground truth dataset.
+4. For each street, measure the maximum distance any of its photos in the
+   ground truth folder had from that street's Master centroid. Add a small
+   margin (10-20%) and set `.radius` to that value.
+5. The original DC overrides were calibrated this way against
+   `06-14-2026_DC` after manual cleanup.
+
+When you re-curate a Master folder, the old centroid moves and the old
+`.radius` may now be wrong. Either delete the `.radius` (revert to default
+35 ft) and re-run the calibration, or re-measure with `Debug-PhotoGps.ps1
+-Sample <Street>` against your most recent ground-truth folder.

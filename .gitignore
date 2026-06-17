@@ -2,6 +2,9 @@
 *_log.txt
 *_MasterDiff_*.csv
 
+# Local-only docs (personal calibration data, machine paths, etc.)
+docs/_*.md
+
 # Excel lock files
 ~$*.xlsx
 
