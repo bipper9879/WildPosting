@@ -1,6 +1,7 @@
 # 1. SETUP SMART PARAMETER ENTRANCE GATE (MUST BE LINE 1)
 Param(
-    [string]$City
+    [string]$City,
+    [switch]$Automation
 )
 
 Add-Type -AssemblyName System.Windows.Forms
@@ -49,8 +50,14 @@ if ([string]::IsNullOrEmpty($City)) {
 }
 
 # 3. Fully Automated Path Generation based on city input
+$PostersRoot = $env:WILDPOSTING_POSTERS_ROOT
+if ([string]::IsNullOrWhiteSpace($PostersRoot)) { $PostersRoot = $env:POSTERS_ROOT }
+if ([string]::IsNullOrWhiteSpace($PostersRoot)) {
+    $PostersRoot = Join-Path -Path ([System.Environment]::GetFolderPath("UserProfile")) -ChildPath "OneDrive\Documents\posters"
+}
+
 $UserRootPath = [System.Environment]::GetFolderPath("UserProfile")
-$CityRootFolder = Join-Path -Path $UserRootPath -ChildPath "OneDrive\Documents\posters\$City"
+$CityRootFolder = Join-Path -Path $PostersRoot -ChildPath $City
 $MasterFolder = Join-Path -Path $CityRootFolder -ChildPath "${City}_Master"
 $ExistingExcelFile = Join-Path -Path $CityRootFolder -ChildPath "${City}_Workbook.xlsx"
 
@@ -58,11 +65,19 @@ Write-Host "=== RUNNING EXCEL INJECTOR FOR: $City ===" -ForegroundColor Cyan
 Write-Host "Targeting Workbook: ${City}_Workbook.xlsx`n" -ForegroundColor Cyan
 
 if (-not (Test-Path $MasterFolder)) { 
-    [System.Windows.Forms.MessageBox]::Show("Master folder not found at:`n$MasterFolder", "Error")
+    if ($Automation) {
+        Write-Error "Master folder not found at: $MasterFolder"
+    } else {
+        [System.Windows.Forms.MessageBox]::Show("Master folder not found at:`n$MasterFolder", "Error")
+    }
     exit 
 }
 if (-not (Test-Path $ExistingExcelFile)) { 
-    [System.Windows.Forms.MessageBox]::Show("Excel workbook not found at:`n$ExistingExcelFile", "Error")
+    if ($Automation) {
+        Write-Error "Excel workbook not found at: $ExistingExcelFile"
+    } else {
+        [System.Windows.Forms.MessageBox]::Show("Excel workbook not found at:`n$ExistingExcelFile", "Error")
+    }
     exit 
 }
 
@@ -97,7 +112,7 @@ function Get-ImageGPS ($FilePath) {
 }
 # Open Excel engine cleanly
 $Excel = New-Object -ComObject Excel.Application
-$Excel.Visible = $true
+$Excel.Visible = (-not $Automation)
 $Excel.DisplayAlerts = $false
 
 $Workbook = $Excel.Workbooks.Open($ExistingExcelFile)
@@ -197,4 +212,6 @@ $null = [System.Runtime.InteropServices.Marshal]::ReleaseComObject($Excel)
 [GC]::Collect()
 
 Write-Host "`n🎉 COMPLETE! Column F has been fully updated in ${City}_Workbook.xlsx." -ForegroundColor Green
-Invoke-Item -Path $ExistingExcelFile
+if (-not $Automation) {
+    Invoke-Item -Path $ExistingExcelFile
+}
